@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "SmartHydro_v3",
+    "slug": "SmartHydro_v3",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./src/assets/logo.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+
+    "ios": {
+      "supportsTablet": true
+    },
+
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/logo.png",
+        "backgroundColor": "#DDE8D8"
+      },
+      "edgeToEdgeEnabled": true
+    },
+
+    "web": {
+      "favicon": "./src/assets/logo.png"
+    }
+  }
+}
