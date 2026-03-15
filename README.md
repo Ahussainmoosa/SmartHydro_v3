@@ -8,9 +8,11 @@ The system provides real-time environmental monitoring, AI disease diagnosis, an
 ---
 
 # System Preview
-![Preview](docs/images/Picture2.png)
-![Preview](docs/images/Picture4.png)
-![Preview](docs/images/user.png)
+<img src="docs/images/Picture2.png" width="300">
+<img src="docs/images/Picture4.png" width="300">
+<img src="docs/images/user.png" width="300">
+
+
 
 ## Dashboard Screen
 ![Dashboard](docs/images/dashboard.png)
