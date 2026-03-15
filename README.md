@@ -8,6 +8,7 @@ The system provides real-time environmental monitoring, AI disease diagnosis, an
 ---
 
 # System Preview
+
 <img src="docs/images/Picture2.png" width="300">
 <img src="docs/images/Picture4.png" width="300">
 <img src="docs/images/user.png" width="300">
@@ -15,20 +16,29 @@ The system provides real-time environmental monitoring, AI disease diagnosis, an
 
 
 ## Dashboard Screen
-![Dashboard](docs/images/dashboard.png)
+
+<img src="docs/images/dashboard.png" width="300">
+
 
 ## Manual Control Page
-![Preview](docs/images/control.png)
+
+<img src="docs/images/control.png" width="300">
 
 ## Sensor Chart Readings
-![Preview](docs/images/logs.png)
+
+<img src="docs/images/logs.png" width="300">
+
 ---
 
 ## AI Plant Scan
-![AI Scan](docs/images/Scan.png)
+
+<img src="docs/images/Scan.png" width="300">
+
 
 ## AI Plant Scan Result 
-![AI Scan](docs/images/result.png)
+
+<img src="docs/images/result.png" width="300">
+
 Allows the user to:
 
 • Take a photo of the plant  
@@ -40,7 +50,8 @@ Allows the user to:
 
 ## Plant Selection Screen
 
-![Plant Selection](docs/images/Picture10.png)
+<img src="docs/images/Picture10.png" width="300">
+
 
 Shows supported plants and recommended hydroponic ranges.
 
