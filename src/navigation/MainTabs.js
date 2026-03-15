@@ -16,7 +16,7 @@ return(
 screenOptions={{
 headerShown:false,
 tabBarStyle:{
-backgroundColor:"#DDE8D8",
+backgroundColor:"#ffffff",
 height:70
 },
 tabBarLabelStyle:{

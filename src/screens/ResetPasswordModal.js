@@ -24,20 +24,14 @@ onClose();
 
 })
 .catch(err=>{
-
 Alert.alert("Error",err.message);
-
 });
 
 };
 
 return(
 
-<Modal
-visible={visible}
-transparent
-animationType="slide"
->
+<Modal visible={visible} transparent animationType="slide">
 
 <View style={{
 flex:1,
@@ -63,26 +57,12 @@ value={email}
 onChangeText={setEmail}
 />
 
-<TouchableOpacity
-style={styles.button}
-onPress={sendReset}
->
-
-<Text style={styles.buttonText}>
-Send Reset Link
-</Text>
-
+<TouchableOpacity style={styles.button} onPress={sendReset}>
+<Text style={styles.buttonText}>Send Reset Link</Text>
 </TouchableOpacity>
 
-<TouchableOpacity
-onPress={onClose}
-style={{marginTop:10}}
->
-
-<Text style={{textAlign:"center",color:"#777"}}>
-Cancel
-</Text>
-
+<TouchableOpacity onPress={onClose} style={{marginTop:10}}>
+<Text style={{textAlign:"center",color:"#777"}}>Cancel</Text>
 </TouchableOpacity>
 
 </View>

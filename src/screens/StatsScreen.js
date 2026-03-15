@@ -32,43 +32,83 @@ const unsubscribe = onValue(logsRef,(snapshot)=>{
 const data = snapshot.val();
 if(!data) return;
 
-const now = Date.now()/1000;
+let entries = Object.entries(data)
+.filter(([timestamp,value]) => {
 
-const filtered = Object.entries(data)
-.filter(([timestamp])=>{
+if(typeof value !== "object") return false;
 
-const time = parseInt(timestamp);
+const ph = Number(value.ph);
+const tds = Number(value.tds);
+const ec = Number(value.ec);
 
-if(filter==="1h") return now-time < 3600;
-if(filter==="24h") return now-time < 86400;
-if(filter==="7d") return now-time < 604800;
-
-return true;
+return (
+!isNaN(ph) ||
+!isNaN(tds) ||
+!isNaN(ec)
+);
 
 })
-.sort((a,b)=>a[0]-b[0]);
 
-const times = filtered.map(([timestamp])=>{
-const date = new Date(timestamp*1000);
+.sort((a,b)=> Number(a[0]) - Number(b[0]));
+
+
+
+/* ---------- LIMIT DATA BY FILTER ---------- */
+
+if(filter==="1h") entries = entries.slice(-60);
+if(filter==="24h") entries = entries.slice(-288);
+if(filter==="7d") entries = entries.slice(-1000);
+if(filter==="30d") entries = entries.slice(-4000);
+
+
+/* ---------- LABELS ---------- */
+
+const times = entries.map(([timestamp])=>{
+
+const date = new Date(Number(timestamp)*1000);
+
+if(filter==="30d"){
+return `${date.getDate()}/${date.getMonth()+1}`;
+}
+
 return `${date.getHours()}:${String(date.getMinutes()).padStart(2,"0")}`;
+
 });
 
-const values = filtered.map(([k,v])=>v);
 
-setLabels(times);
+const values = entries.map(([k,v]) => ({
+ph: Number(v.ph) || 0,
+tds: Number(v.tds) || 0,
+ec: Number(v.ec) || 0,
+pump: Number(v.pump) || 0,
+light: Number(v.light) || 0
+}));
 
-setPhData(values.map(v=>v.ph ?? 0));
-setTdsData(values.map(v=>v.tds ?? 0));
-setEcData(values.map(v=>v.ec ?? 0));
 
-setPumpData(values.map(v=>v.pump ?? 0));
-setLightData(values.map(v=>v.light ?? 0));
+setLabels(times.length > 1 ? times : ["",""]);
+
+const ph = values.map(v=>Number(v.ph) || 0);
+const tds = values.map(v=>Number(v.tds) || 0);
+const ec = values.map(v=>Number(v.ec) || 0);
+const pump = values.map(v=>Number(v.pump) || 0);
+const light = values.map(v=>Number(v.light) || 0);
+
+setPhData(ph.length > 1 ? ph : [ph[0] || 0, ph[0] || 0]);
+setTdsData(tds.length > 1 ? tds : [tds[0] || 0, tds[0] || 0]);
+setEcData(ec.length > 1 ? ec : [ec[0] || 0, ec[0] || 0]);
+
+setPumpData(pump.length > 1 ? pump : [pump[0] || 0, pump[0] || 0]);
+setLightData(light.length > 1 ? light : [light[0] || 0, light[0] || 0]);
+
 
 });
 
 return ()=>unsubscribe();
 
 },[filter]);
+
+
+/* ---------- CHART CONFIG ---------- */
 
 const chartConfig = {
 
@@ -83,7 +123,11 @@ labelColor:(opacity=1)=>`rgba(0,0,0,${opacity})`
 
 };
 
+
+/* ---------- CHART ---------- */
+
 const renderChart=(title,data)=>(
+
 <View style={styles.chartCard}>
 
 <Text style={styles.chartTitle}>{title}</Text>
@@ -95,7 +139,6 @@ data={{
 labels: labels.length ? labels : [""],
 datasets:[{data: data.length ? data : [0]}]
 }}
-
 width={Math.max(screenWidth, labels.length*60)}
 height={220}
 chartConfig={chartConfig}
@@ -105,7 +148,11 @@ bezier
 </ScrollView>
 
 </View>
+
 );
+
+
+/* ---------- UI ---------- */
 
 return(
 
@@ -134,6 +181,13 @@ style={[styles.filterButton, filter==="7d" && styles.filterActive]}
 onPress={()=>setFilter("7d")}
 >
 <Text style={styles.filterText}>7D</Text>
+</TouchableOpacity>
+
+<TouchableOpacity
+style={[styles.filterButton, filter==="30d" && styles.filterActive]}
+onPress={()=>setFilter("30d")}
+>
+<Text style={styles.filterText}>1M</Text>
 </TouchableOpacity>
 
 </View>

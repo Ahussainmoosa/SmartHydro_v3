@@ -1,15 +1,36 @@
-import { useEffect, useState } from "react";
-import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Image,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View
+} from "react-native";
+
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+
+import { getAuth } from "firebase/auth";
+import { getDatabase, onValue, ref } from "firebase/database";
+
+import * as ImageManipulator from "expo-image-manipulator";
+import app from "../config/firebase";
 import styles from "../styles/DashboardStyles";
 
-import { getDatabase, onValue, ref, set } from "firebase/database";
-import app from "../config/firebase";
-
 const db = getDatabase(app);
+const auth = getAuth(app);
+
+/* ---------- API ---------- */
+
+const API_URL =
+"https://smarthydro-api-266809663557.us-central1.run.app/predict";
 
 export default function DashboardScreen({ navigation }) {
 
-/* -------------------- Sensor States -------------------- */
+/* ---------- STATES ---------- */
 
 const [ph,setPh] = useState(0);
 const [tds,setTds] = useState(0);
@@ -17,23 +38,38 @@ const [ec,setEc] = useState(0);
 const [temp,setTemp] = useState(0);
 const [water,setWater] = useState(0);
 
-/* -------------------- Manual Control States -------------------- */
-
-const [phUp,setPhUp] = useState(0);
-const [phDown,setPhDown] = useState(0);
-const [tdsUp,setTdsUp] = useState(0);
-const [tdsDown,setTdsDown] = useState(0);
-const [mainPump,setMainPump] = useState(0);
-const [light,setLight] = useState(0);
-
-/* -------------------- Plant State -------------------- */
-
 const [plant,setPlant] = useState("lettuce");
 
+const [prediction,setPrediction] = useState(null);
+const [confidence,setConfidence] = useState(null);
+const [treatment,setTreatment] = useState(null);
+const [healthScore,setHealthScore] = useState(null);
 
-/* -------------------- Plant Image -------------------- */
+const [imagePreview,setImagePreview] = useState(null);
+const [loading,setLoading] = useState(false);
 
-const getPlantImage = () => {
+/* ---------- HEALTH GAUGE ---------- */
+
+const healthAnim = useRef(new Animated.Value(0)).current;
+
+useEffect(()=>{
+
+Animated.timing(healthAnim,{
+toValue:healthScore || 0,
+duration:1200,
+useNativeDriver:false
+}).start();
+
+},[healthScore]);
+
+const width = healthAnim.interpolate({
+inputRange:[0,100],
+outputRange:["0%","100%"]
+});
+
+/* ---------- PLANT IMAGE ---------- */
+
+const getPlantImage = ()=>{
 
 switch(plant){
 
@@ -53,10 +89,9 @@ return require("../assets/plants/lettuce.png");
 
 };
 
+/* ---------- PLANT LIMITS ---------- */
 
-/* -------------------- Plant Limits -------------------- */
-
-const getPlantLimits = () => {
+const getPlantLimits = ()=>{
 
 switch(plant){
 
@@ -76,105 +111,219 @@ return {ph:"5.5–6.5", tds:"560–840"};
 
 };
 
+/* ---------- SCAN MENU ---------- */
 
-/* -------------------- Sensors Listener -------------------- */
+const openScanMenu = ()=>{
+
+Alert.alert(
+"Scan Your Plant",
+"Choose image source",
+[
+{text:"Take Photo",onPress:openCamera},
+{text:"Pick from Gallery",onPress:openGallery},
+{text:"Cancel",style:"cancel"}
+]
+);
+
+};
+
+/* ---------- CAMERA ---------- */
+
+const openCamera = async ()=>{
+
+const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+if(!permission.granted){
+
+Alert.alert("Permission needed","Camera access required");
+return;
+
+}
+
+const result = await ImagePicker.launchCameraAsync({
+quality:0.4,
+base64:false
+});
+
+if(!result.canceled){
+
+setImagePreview(result.assets[0].uri);
+sendToAPI(result.assets[0].uri);
+
+}
+
+};
+
+/* ---------- GALLERY ---------- */
+
+const openGallery = async ()=>{
+
+const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+if(!permission.granted){
+
+Alert.alert("Permission needed","Gallery access required");
+return;
+
+}
+
+const result = await ImagePicker.launchImageLibraryAsync({
+mediaTypes:["images"],
+quality:0.4
+});
+
+if(!result.canceled){
+
+setImagePreview(result.assets[0].uri);
+sendToAPI(result.assets[0].uri);
+
+}
+
+};
+
+/* ---------- SEND IMAGE ---------- */
+
+const sendToAPI = async (uri)=>{
+
+try{
+
+setLoading(true);
+
+/* compress image before upload */
+
+const compressed = await ImageManipulator.manipulateAsync(
+uri,
+[{ resize: { width: 800 } }],
+{ compress: 0.4, format: ImageManipulator.SaveFormat.JPEG }
+);
+
+const formData = new FormData();
+
+formData.append("file",{
+uri:compressed.uri,
+name:"plant.jpg",
+type:"image/jpeg"
+});
+
+const response = await fetch(API_URL,{
+method:"POST",
+body:formData,
+headers:{
+"Content-Type":"multipart/form-data"
+}
+});
+
+const result = await response.json();
+
+console.log("API RESULT:",result);
+
+if(result.status === "success"){
+
+setPrediction(result.prediction);
+setConfidence(result.confidence);
+setTreatment(result.treatment);
+setHealthScore(result.health_score);
+
+}else{
+
+Alert.alert("AI Error",result.message || "Prediction failed");
+
+}
+
+}catch(err){
+
+console.log("API ERROR:",err);
+Alert.alert("Error","API connection failed");
+
+}
+
+setLoading(false);
+
+};
+
+/* ---------- CLEAR AI RESULT ---------- */
+
+const clearAIResult = () => {
+setPrediction(null);
+setConfidence(null);
+setTreatment(null);
+setHealthScore(null);
+setImagePreview(null);
+};
+
+/* ---------- SENSOR LISTENER ---------- */
 
 useEffect(()=>{
 
 const sensorRef = ref(db,"Sensors");
 
-const unsubscribe = onValue(sensorRef,(snapshot)=>{
+const unsub = onValue(sensorRef,(snap)=>{
 
-const data = snapshot.val();
+const d = snap.val();
 
-if(data){
+if(d){
 
-setPh(data.ph ?? 0);
-setTds(data.tds ?? 0);
-setEc(data.ec ?? 0);
-setTemp(data.temperature ?? 0);
-setWater(data.waterLevel ?? 0);
+setPh(d.ph ?? 0);
+setTds(d.tds ?? 0);
+setEc(d.ec ?? 0);
+setTemp(d.temperature ?? 0);
+setWater(d.waterLevel ?? 0);
 
 }
 
 });
 
-return ()=>unsubscribe();
+return ()=>unsub();
 
 },[]);
 
-
-/* -------------------- Plant Selection Listener -------------------- */
+/* ---------- PLANT LISTENER ---------- */
 
 useEffect(()=>{
 
 const plantRef = ref(db,"System/plant");
 
-const unsubscribe = onValue(plantRef,(snapshot)=>{
+const unsub = onValue(plantRef,(snap)=>{
 
-const data = snapshot.val();
-
-if(data){
-setPlant(data);
-}
+if(snap.val()) setPlant(snap.val());
 
 });
 
-return ()=>unsubscribe();
+return ()=>unsub();
 
 },[]);
 
-
-/* -------------------- Manual Control Listener -------------------- */
-
-useEffect(()=>{
-
-const manualRef = ref(db,"Manual");
-
-const unsubscribe = onValue(manualRef,(snapshot)=>{
-
-const data = snapshot.val();
-
-if(data){
-
-setPhUp(data.PH_up ?? 0);
-setPhDown(data.PH_down ?? 0);
-setTdsUp(data.TDS_up ?? 0);
-setTdsDown(data.TDS_down ?? 0);
-setMainPump(data.mainPump ?? 0);
-setLight(data.light ?? 0);
-
-}
-
-});
-
-return ()=>unsubscribe();
-
-},[]);
-
-
-/* -------------------- Toggle Device -------------------- */
-
-const toggleDevice = (device,current)=>{
-
-const newValue = current ? 0 : 1;
-
-set(ref(db,"Manual/"+device),newValue);
-
-};
-
-
-/* -------------------- UI -------------------- */
+/* ---------- UI ---------- */
 
 return(
+
+<View style={{flex:1}}>
+
+{/* TOP BAR */}
+
+<View style={styles.topBar}>
+
+<View style={styles.topLeft}>
+
+<Image
+source={require("../assets/logo.png")}
+style={styles.logoSmall}
+/>
+
+<Text style={styles.topTitle}>
+SmartHydro 🌿
+</Text>
+
+</View>
+
+</View>
 
 <ScrollView
 style={styles.container}
 contentContainerStyle={styles.scrollContent}
 >
 
-
-{/* Welcome Section */}
+{/* WELCOME */}
 
 <View style={styles.welcomeBox}>
 
@@ -188,8 +337,7 @@ Monitor and control your plants health
 
 </View>
 
-
-{/* Plant Selection */}
+{/* PLANT */}
 
 <TouchableOpacity
 style={styles.plantBox}
@@ -211,102 +359,162 @@ style={styles.plantImage}
 pH: {getPlantLimits().ph}   TDS: {getPlantLimits().tds}
 </Text>
 
-<Text style={styles.plantSubtitle}>
-Selected • 1 day ago
-</Text>
-
 </View>
 
 </TouchableOpacity>
 
+{/* SCAN BUTTON */}
 
-{/* Sensor Section */}
+<View style={styles.scanContainer}>
 
-<Text style={styles.sectionTitle}>
-Hydro Device
+<TouchableOpacity
+style={styles.scanButton}
+onPress={openScanMenu}
+>
+
+<Ionicons name="scan-outline" size={28} color="#fff"/>
+
+<Text style={styles.scanButtonText}>
+Scan Your Plants
 </Text>
 
+</TouchableOpacity>
+
+</View>
+
+{/* IMAGE PREVIEW */}
+
+{imagePreview && (
+
+<Image
+source={{uri:imagePreview}}
+style={styles.preview}
+/>
+
+)}
+
+{/* LOADING */}
+
+{loading && (
+
+<View style={styles.loadingBox}>
+
+<ActivityIndicator size="large" color="#2e7d32"/>
+
+<Text style={styles.loadingText}>
+AI scanning your plant...
+</Text>
+
+</View>
+
+)}
+
+{/* RESULT */}
+
+{prediction && (
+
+<View style={styles.resultBox}>
+
+{/* CLEAR BUTTON */}
+
+<TouchableOpacity
+style={styles.clearButton}
+onPress={clearAIResult}
+>
+
+<Ionicons name="close-circle" size={22} color="#fff" />
+
+</TouchableOpacity>
+
+
+<View style={styles.diseaseBadge}>
+
+<Text style={styles.badgeText}>
+{prediction}
+</Text>
+
+</View>
+
+<Text style={styles.confidenceText}>
+Confidence: {(confidence * 100).toFixed(2)}%
+</Text>
+
+<View style={styles.treatmentBox}>
+
+<Text style={styles.treatmentTitle}>
+Treatment
+</Text>
+
+<Text style={styles.treatmentText}>
+{treatment}
+</Text>
+
+</View>
+
+</View>
+
+)}
+
+
+{/* HEALTH GAUGE */}
+
+{healthScore !== null && (
+
+<View style={styles.healthBox}>
+
+<Text style={styles.healthTitle}>
+Plant Health Score
+</Text>
+
+<View style={styles.healthBar}>
+
+<Animated.View
+style={[styles.healthFill,{width}]}
+/>
+
+</View>
+
+<Text style={styles.healthValue}>
+{healthScore} / 100
+</Text>
+
+</View>
+
+)}
+
+{/* SENSOR GRID */}
 
 <View style={styles.grid}>
 
 <View style={styles.card}>
+<Ionicons name="thermometer-outline" size={26} color="#ff7043"/>
 <Text style={styles.cardValue}>{temp}°C</Text>
 <Text style={styles.cardTitle}>Temperature</Text>
 </View>
 
 <View style={styles.card}>
-<Text style={styles.cardValue}>
-{water ? "Enough" : "Low"}
-</Text>
+<Ionicons name="water-outline" size={26} color="#42a5f5"/>
+<Text style={styles.cardValue}>{water ? "Enough" : "Low"}</Text>
 <Text style={styles.cardTitle}>Water Level</Text>
 </View>
 
 <View style={styles.card}>
+<Ionicons name="flask-outline" size={26} color="#8e24aa"/>
 <Text style={styles.cardValue}>{ph}</Text>
-<Text style={styles.cardTitle}>pH Level</Text>
+<Text style={styles.cardTitle}>pH</Text>
 </View>
 
 <View style={styles.card}>
+<Ionicons name="flash-outline" size={26} color="#43a047"/>
 <Text style={styles.cardValue}>{ec}</Text>
-<Text style={styles.cardTitle}>EC Level</Text>
+<Text style={styles.cardTitle}>EC</Text>
 </View>
-
-</View>
-
-
-{/* Manual Controls */}
-
-<Text style={styles.sectionTitle}>
-Manual Controls
-</Text>
-
-<View style={styles.controlGrid}>
-
-<TouchableOpacity
-style={[styles.controlButton, phUp ? styles.controlButtonActive : null]}
-onPress={()=>toggleDevice("PH_up",phUp)}
->
-<Text style={styles.controlText}>PH UP</Text>
-</TouchableOpacity>
-
-<TouchableOpacity
-style={[styles.controlButton, phDown ? styles.controlButtonActive : null]}
-onPress={()=>toggleDevice("PH_down",phDown)}
->
-<Text style={styles.controlText}>PH DOWN</Text>
-</TouchableOpacity>
-
-<TouchableOpacity
-style={[styles.controlButton, tdsUp ? styles.controlButtonActive : null]}
-onPress={()=>toggleDevice("TDS_up",tdsUp)}
->
-<Text style={styles.controlText}>TDS UP</Text>
-</TouchableOpacity>
-
-<TouchableOpacity
-style={[styles.controlButton, tdsDown ? styles.controlButtonActive : null]}
-onPress={()=>toggleDevice("TDS_down",tdsDown)}
->
-<Text style={styles.controlText}>TDS DOWN</Text>
-</TouchableOpacity>
-
-<TouchableOpacity
-style={[styles.controlButton, mainPump ? styles.controlButtonActive : null]}
-onPress={()=>toggleDevice("mainPump",mainPump)}
->
-<Text style={styles.controlText}>MAIN PUMP</Text>
-</TouchableOpacity>
-
-<TouchableOpacity
-style={[styles.controlButton, light ? styles.controlButtonActive : null]}
-onPress={()=>toggleDevice("light",light)}
->
-<Text style={styles.controlText}>LIGHT</Text>
-</TouchableOpacity>
 
 </View>
 
 </ScrollView>
+
+</View>
 
 );
 

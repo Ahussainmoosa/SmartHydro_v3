@@ -42,6 +42,13 @@ alignItems:"center"
 buttonText:{
 color:"#fff",
 fontWeight:"600"
-}
+},
+
+logo:{
+width:140,
+height:140,
+resizeMode:"contain",
+backgroundColor:"transparent"
+},
 
 });

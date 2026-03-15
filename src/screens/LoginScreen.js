@@ -1,95 +1,97 @@
-import { sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { useState } from "react";
-import { Alert, Modal, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { auth } from "../config/firebase";
-import styles from "../styles/LoginStyles";
 
-export default function ResetPasswordModal({ visible, onClose }){
+import styles from "../styles/LoginStyles";
+import ResetPasswordModal from "./ResetPasswordModal";
+
+export default function LoginScreen({ navigation }) {
 
 const [email,setEmail] = useState("");
+const [password,setPassword] = useState("");
+const [showReset,setShowReset] = useState(false);
 
-const sendReset = ()=>{
+const handleLogin = ()=>{
 
-if(!email){
-Alert.alert("Enter Email","Please enter your email");
+if(!email || !password){
+Alert.alert("Error","Enter email and password");
 return;
 }
 
-sendPasswordResetEmail(auth,email)
+signInWithEmailAndPassword(auth,email,password)
 .then(()=>{
-
-Alert.alert("Success","Password reset email sent");
-setEmail("");
-onClose();
-
+Alert.alert("Login Successful");
+navigation.replace("MainTabs");
 })
 .catch(err=>{
-
-Alert.alert("Error",err.message);
-
+Alert.alert("Login Failed",err.message);
 });
 
 };
 
 return(
 
-<Modal
-visible={visible}
-transparent
-animationType="slide"
->
+<View style={styles.container}>
+<Image
+source={require("../assets/logo.png")}
+style={styles.logo}
+/>
 
-<View style={{
-flex:1,
-justifyContent:"center",
-backgroundColor:"rgba(0,0,0,0.4)"
-}}>
+<Text style={styles.title}>Smart Hydroponic</Text>
 
-<View style={{
-backgroundColor:"#fff",
-margin:20,
-padding:25,
-borderRadius:12
-}}>
-
-<Text style={{fontSize:20,fontWeight:"600",marginBottom:15}}>
-Reset Password
+<Text style={styles.subtitle}>
+Login to monitor your farm
 </Text>
 
 <TextInput
 style={styles.input}
-placeholder="Enter your email"
+placeholder="Email"
 value={email}
 onChangeText={setEmail}
 />
 
-<TouchableOpacity
-style={styles.button}
-onPress={sendReset}
->
+<TextInput
+style={styles.input}
+placeholder="Password"
+secureTextEntry
+value={password}
+onChangeText={setPassword}
+/>
 
-<Text style={styles.buttonText}>
-Send Reset Link
-</Text>
-
+<TouchableOpacity style={styles.button} onPress={handleLogin}>
+<Text style={styles.buttonText}>LOGIN</Text>
 </TouchableOpacity>
 
 <TouchableOpacity
-onPress={onClose}
-style={{marginTop:10}}
+onPress={()=>setShowReset(true)}
+style={{marginTop:15}}
 >
+<Text style={{color:"#2E7D32"}}>
+Forgot Password?
+</Text>
+</TouchableOpacity>
 
-<Text style={{textAlign:"center",color:"#777"}}>
-Cancel
+<View style={{flexDirection:"row",marginTop:25}}>
+
+<Text style={{color:"#555"}}>
+Don't have an account?
 </Text>
 
+<TouchableOpacity onPress={()=>navigation.navigate("Signup")}>
+<Text style={{color:"#2E7D32",marginLeft:5,fontWeight:"600"}}>
+Sign Up
+</Text>
 </TouchableOpacity>
 
 </View>
 
-</View>
+<ResetPasswordModal
+visible={showReset}
+onClose={()=>setShowReset(false)}
+/>
 
-</Modal>
+</View>
 
 );
 
